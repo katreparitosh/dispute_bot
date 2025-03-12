@@ -34,13 +34,37 @@ class DatabaseHandler:
             print(f"Error verifying transaction: {str(e)}")
             return None
 
-    def create_dispute(self, user_id, transaction_id, dispute_type, description):
-        """Create a new dispute record"""
+    def validate_dispute_reason(self, dispute_type, details):
+        """Validate dispute reason and its required details"""
+        valid_types = {
+            'INR': ['expected_delivery_date', 'contacted_seller'],
+            'SNAD': ['item_condition', 'contacted_seller'],
+            'UNAUTH': ['recognizes_merchant', 'contacted_bank']
+        }
+        
+        if dispute_type not in valid_types:
+            return False, "Invalid dispute type. Must be INR, SNAD, or UNAUTH."
+            
+        required_fields = valid_types[dispute_type]
+        missing_fields = [field for field in required_fields if field not in details]
+        
+        if missing_fields:
+            return False, f"Missing required information: {', '.join(missing_fields)}"
+            
+        return True, "Valid dispute details"
+
+    def create_dispute(self, user_id, transaction_id, dispute_type, details):
+        """Create a new dispute record with specific reason requirements"""
         try:
             # First verify the transaction
             transaction = self.verify_transaction(transaction_id, user_id)
             if not transaction:
                 return None, "Transaction not found or doesn't belong to user"
+                
+            # Validate dispute type and details
+            is_valid, message = self.validate_dispute_reason(dispute_type, details)
+            if not is_valid:
+                return None, message
 
             # Generate dispute ID
             dispute_id = f"DSP{str(uuid.uuid4())[:8]}"
@@ -69,7 +93,8 @@ class DatabaseHandler:
                 'type': dispute_type,
                 'status': 'open',
                 'creation_date': datetime.now().strftime('%Y-%m-%d'),
-                'description': description
+                'details': details,  # Store all the reason-specific details
+                'description': details.get('description', '')
             }
             
             # Append new dispute

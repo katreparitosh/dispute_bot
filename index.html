@@ -7,20 +7,43 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" alt="PayPal Logo" class="logo">
-            <h1>PayPal Dispute Agent</h1>
+    <div class="app-container">
+        <div class="chat-container">
+            <div class="chat-header">
+                <img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" alt="PayPal Logo" class="logo">
+                <h1>PayPal Dispute Agent</h1>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages will be added here dynamically -->
+            </div>
+            <div class="options-container" id="optionsContainer">
+                <!-- Option buttons will be added here dynamically -->
+            </div>
+            <div class="chat-input">
+                <textarea id="userInput" placeholder="Type your message here..." rows="2"></textarea>
+                <button id="sendButton">Send</button>
+            </div>
         </div>
-        <div class="chat-messages" id="chatMessages">
-            <!-- Messages will be added here dynamically -->
-        </div>
-        <div class="options-container" id="optionsContainer">
-            <!-- Option buttons will be added here dynamically -->
-        </div>
-        <div class="chat-input">
-            <textarea id="userInput" placeholder="Type your message here..." rows="2"></textarea>
-            <button id="sendButton">Send</button>
+        <div class="state-panel">
+            <h2>Conversation State</h2>
+            <div class="state-content" id="stateContent">
+                <div class="state-item">
+                    <span class="state-label">Intent Detection:</span>
+                    <span class="state-value" id="currentIntent">-</span>
+                </div>
+                <div class="state-item">
+                    <span class="state-label">User ID:</span>
+                    <span class="state-value" id="currentUserId">-</span>
+                </div>
+                <div class="state-item">
+                    <span class="state-label">Transaction ID:</span>
+                    <span class="state-value" id="currentTransactionId">-</span>
+                </div>
+                <div class="state-item">
+                    <span class="state-label">Dispute Type:</span>
+                    <span class="state-value" id="currentDisputeType">-</span>
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>

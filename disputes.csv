@@ -1,3 +1,3 @@
-dispute_id,user_id,transaction_id,type,status,creation_date,description
-# This file will store dispute records,,,,,,
-DSP38cd5270,U123456,TX789012,Item Not Received,open,2025-03-11,Expected delivery date: 10th March 2025
+dispute_id,user_id,transaction_id,type,status,creation_date,description,details
+# This file will store dispute records,,,,,,,
+DSP55ca96bd,U123456,TX789013,INR,open,2025-03-12,,"{'expected_delivery_date': '2025-03-10', 'contacted_seller': 'No'}"

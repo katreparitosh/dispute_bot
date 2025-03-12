@@ -1,11 +1,36 @@
+// API base URL
+const API_BASE_URL = 'http://localhost:3000';
+
 document.addEventListener('DOMContentLoaded', () => {
     const chatMessages = document.getElementById('chatMessages');
     const userInput = document.getElementById('userInput');
     const sendButton = document.getElementById('sendButton');
     const optionsContainer = document.getElementById('optionsContainer');
+    
+    // State panel elements
+    const currentIntent = document.getElementById('currentIntent');
+    const currentUserId = document.getElementById('currentUserId');
+    const currentTransactionId = document.getElementById('currentTransactionId');
+    const currentDisputeType = document.getElementById('currentDisputeType');
 
-    // Initial bot message
-    addMessage("Hello! I'm your PayPal Dispute Assistant. How can I help you today?", 'bot');
+    // Reset conversation context and initialize UI when page loads
+    fetch(`${API_BASE_URL}/api/reset`, {
+        method: 'POST'
+    }).then(() => {
+        // Reset state panel
+        updateStatePanel({
+            intent: 'Initial Greeting',
+            userId: '-',
+            transactionId: '-',
+            disputeType: '-'
+        });
+        // Add initial bot message
+        addMessage("Hello! I'm your PayPal Dispute Assistant. I can help you file a new dispute or check the status of an existing one. How can I help you today?", 'bot');
+    }).catch(error => {
+        console.error('Error resetting conversation:', error);
+        // Still show initial message even if reset fails
+        addMessage("Hello! I'm your PayPal Dispute Assistant. How can I help you today?", 'bot');
+    });
 
     // Handle send button click
     sendButton.addEventListener('click', handleUserInput);
@@ -64,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             userInput.disabled = true;
             
             // Make API call to backend
-            const response = await fetch('http://localhost:3000/api/chat', {
+            const response = await fetch(`${API_BASE_URL}/api/chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -78,23 +103,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // Update conversation state panel
+            updateStatePanel({
+                intent: data.intent || '-',
+                userId: data.context_updates?.user_id || currentUserId.textContent,
+                transactionId: data.context_updates?.transaction_id || currentTransactionId.textContent,
+                disputeType: data.context_updates?.dispute_type || currentDisputeType.textContent
+            });
+
             // Add bot response
             if (data.message) {
                 addMessage(data.message, 'bot');
             }
 
             // Show options if available
-            if (data.options) {
+            if (data.options && Array.isArray(data.options)) {
                 showOptions(data.options);
             }
 
         } catch (error) {
             console.error('Error:', error);
-            addMessage('Sorry, I encountered an error. Please try again later.', 'bot');
+            addMessage(`Error: ${error.message || 'Something went wrong. Please try again.'}`, 'bot');
+            
+            // Reset state panel on error
+            updateStatePanel({
+                intent: 'Error',
+                userId: '-',
+                transactionId: '-',
+                disputeType: '-'
+            });
         } finally {
             // Reset loading state
             sendButton.disabled = false;
             userInput.disabled = false;
         }
+    }
+
+    function updateStatePanel(state) {
+        // Update state panel with new values, keeping existing ones if not provided
+        currentIntent.textContent = state.intent || '-';
+        currentUserId.textContent = state.userId || '-';
+        currentTransactionId.textContent = state.transactionId || '-';
+        currentDisputeType.textContent = state.disputeType || '-';
     }
 });
