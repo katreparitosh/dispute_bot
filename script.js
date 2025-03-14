@@ -2,16 +2,38 @@
 const API_BASE_URL = 'http://localhost:3000';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const chatMessages = document.getElementById('chatMessages');
-    const userInput = document.getElementById('userInput');
-    const sendButton = document.getElementById('sendButton');
-    const optionsContainer = document.getElementById('optionsContainer');
-    
-    // State panel elements
-    const currentIntent = document.getElementById('currentIntent');
-    const currentUserId = document.getElementById('currentUserId');
-    const currentTransactionId = document.getElementById('currentTransactionId');
-    const currentDisputeType = document.getElementById('currentDisputeType');
+    // Get DOM elements and verify they exist
+    const elements = {
+        chatMessages: document.getElementById('chatMessages'),
+        userInput: document.getElementById('userInput'),
+        sendButton: document.getElementById('sendButton'),
+        optionsContainer: document.getElementById('optionsContainer'),
+        // State panel elements
+        currentIntent: document.getElementById('currentIntent'),
+        currentUserId: document.getElementById('currentUserId'),
+        currentTransactionId: document.getElementById('currentTransactionId'),
+        currentDisputeType: document.getElementById('currentDisputeType'),
+        // Back Office panel elements
+        fraudBuyer: document.getElementById('fraudBuyer'),
+        fraudSeller: document.getElementById('fraudSeller'),
+        caseConfidence: document.getElementById('caseConfidence'),
+        favorParty: document.getElementById('favorParty')
+    };
+
+    // Verify all required elements exist
+    for (const [key, element] of Object.entries(elements)) {
+        if (!element) {
+            console.error(`Required element '${key}' not found in the DOM`);
+            return;
+        }
+    }
+
+    // Destructure elements for easier access
+    const {
+        chatMessages, userInput, sendButton, optionsContainer,
+        currentIntent, currentUserId, currentTransactionId, currentDisputeType,
+        caseId, fraudBuyer, fraudSeller
+    } = elements;
 
     // Reset conversation context and initialize UI when page loads
     fetch(`${API_BASE_URL}/api/reset`, {
@@ -125,6 +147,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 showOptions(data.options);
             }
 
+            // Update Back Office panel if case data is available
+            if (data.intent === 'Dispute Status' && data.case) {
+                updateBOPanel(data);
+            } else if (data.intent === 'Dispute Status' && !data.case) {
+                // Reset BO panel when checking status but no case found
+                updateBOPanel(null);
+            }
+
         } catch (error) {
             console.error('Error:', error);
             addMessage(`Error: ${error.message || 'Something went wrong. Please try again.'}`, 'bot');
@@ -149,5 +179,32 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUserId.textContent = state.userId || '-';
         currentTransactionId.textContent = state.transactionId || '-';
         currentDisputeType.textContent = state.disputeType || '-';
+    }
+
+    function updateBOPanel(data) {
+        // Reset BO panel if no case data
+        if (!data || !data.case) {
+            fraudBuyer.textContent = '-';
+            fraudBuyer.className = 'bo-value';
+            fraudSeller.textContent = '-';
+            fraudSeller.className = 'bo-value';
+            caseConfidence.textContent = '-';
+            favorParty.textContent = '-';
+            return;
+        }
+
+        // Update fraud buyer status with color coding
+        const isFraudBuyer = parseInt(data.case.fraud_buyer) === 1;
+        fraudBuyer.textContent = isFraudBuyer ? 'Yes' : 'No';
+        fraudBuyer.className = 'bo-value ' + (isFraudBuyer ? 'fraud-true' : 'fraud-false');
+        
+        // Update fraud seller status with color coding
+        const isFraudSeller = parseInt(data.case.fraud_seller) === 1;
+        fraudSeller.textContent = isFraudSeller ? 'Yes' : 'No';
+        fraudSeller.className = 'bo-value ' + (isFraudSeller ? 'fraud-true' : 'fraud-false');
+
+        // Update case confidence and favor party
+        caseConfidence.textContent = data.case.case_outcome_confidence + '%';
+        favorParty.textContent = data.case.favor_party;
     }
 });

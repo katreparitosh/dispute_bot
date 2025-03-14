@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 import pandas as pd
 from db_handler import DatabaseHandler
+from back_office_handler import BackOfficeHandler
 
 # Load environment variables
 load_dotenv()
@@ -12,6 +13,7 @@ load_dotenv()
 app = Flask(__name__, static_url_path='', static_folder='.')
 CORS(app)
 db = DatabaseHandler()
+back_office = BackOfficeHandler()
 
 @app.route('/<path:path>')
 def serve_static(path):
@@ -67,93 +69,155 @@ if not api_key:
 
 client = openai.OpenAI(api_key=api_key)
 
-def process_message(message, context):
+def get_back_office_response(dispute_id, transaction_id, user_id):
     system_prompt = """
-    You are a PayPal Dispute Resolution Agent. Help customers file and manage disputes efficiently.
-    
-    Current context: {context}
-    
-    Follow these rules strictly:
-    1. First, determine user's intent:
-       - "File New Dispute" - If they want to file a new dispute
-       - "Dispute Status" - If they want to check status
-       - "Not Dispute" - For other queries
-       - "Conclude" - If the user expresses gratitude or indicates they're done (e.g., "thank you", "great", "works", "ok")
-
-    If intent is "Conclude":
-    - Respond with: "You're welcome! Let me know how I can help further."
-    - Clear any existing context
-
-    2. For "File New Dispute" or "Dispute Status":
-       - If no user_id, ask for it (format: U followed by 6 digits)
-       - After getting user_id, directly ask for transaction_id (format: TX followed by 6 digits)
-       - For "Dispute Status", always ask for user_id and transaction_id, even if previously provided
-
-    3. For "File New Dispute" after getting transaction_id:
-       - If no dispute_type, present EXACTLY these options:
-         * Item Not Received (INR)
-         * Item not as Described (SNAD)
-         * Unauthorized Activity (UNAUTH)
-       
-       - Once dispute_type selected, follow this flow:
-         For INR:
-         1. Ask: "What was the expected delivery date?"
-         2. Ask: "Have you contacted the seller? (Yes/No)"
-         
-         For SNAD:
-         1. Ask: "What's wrong with the item? Describe the issues."
-         2. Ask: "Have you contacted the seller? (Yes/No)"
-         
-         For UNAUTH:
-         1. Ask: "Do you recognize the merchant? (Yes/No)"
-         2. Ask: "Have you contacted your bank? (Yes/No)"
-
-    4. For "Dispute Status":
-       - First ask for user_id if not provided
-       - Then ask for transaction_id
-       - After getting both, show dispute status and details
-       - Reset context after showing status
-
-    5. Response Rules:
-       - Ask ONE question at a time
-       - Only show dispute reason options when asking for dispute type
-       - Never show options for User ID or Transaction ID inputs
-       - Store all answers in dispute_details
-       - For INR disputes:
-         * When user provides delivery date, store it and immediately ask about seller contact
-         * Format the delivery date as YYYY-MM-DD in dispute_details
-       - For SNAD disputes:
-         * When user describes item condition, store it and immediately ask about seller contact
-       - For UNAUTH disputes:
-         * When user answers about merchant recognition, store it and immediately ask about bank contact
-       
+    You are a PayPal Back Office Agent responsible for communicating dispute investigation outcomes to customers.
+    Be professional, clear, and empathetic in your responses.
     Format your response as a JSON object with these fields:
     {
-        "intent": "File New Dispute" or "Dispute Status" or "Not Dispute",
         "response": "your message to the user",
-        "options": [], (empty if no options needed)
-        "context_updates": {
-            "user_id": null,
-            "transaction_id": null,
-            "dispute_type": null,
-            "dispute_details": {},
-            "current_question": null
-        }
+        "context_updates": {}
     }
     """
 
     try:
+        # Get case status from back office
+        case, outcome = back_office.get_case_status(
+            dispute_id=dispute_id,
+            transaction_id=transaction_id,
+            user_id=user_id
+        )
+
+        if not case:
+            return {
+                "response": f"I apologize, but I couldn't find the case details. {outcome}",
+                "context_updates": {}
+            }
+
+        # Get AI response for the outcome
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Context: {str(context)}\nUser message: {message}"}
+                {"role": "user", "content": f"Case details: {case}\nOutcome: {outcome}"}
             ],
             temperature=0,
             max_tokens=500
         )
         result = response.choices[0].message.content.strip()
-        print(f"Processed message: '{message}' with context {context}\nResult: {result}")
+        return json.loads(result)
+
+    except Exception as e:
+        print(f"Error in back office response: {str(e)}")
+        return {
+            "response": "I apologize, but I encountered an error while retrieving your case details. Please try again later.",
+            "context_updates": {}
+        }
+
+def get_dispute_status_prompt(context):
+    return """
+    You are a PayPal Dispute Status Agent. Your ONLY role is to help customers check their dispute status.
+    
+    Current context: {}
+    
+    Follow these rules strictly:
+    1. ALWAYS maintain "Dispute Status" as the intent
+    2. NEVER suggest filing a new dispute
+    3. ONLY ask for these details in order:
+       - User ID (format: U followed by 6 digits)
+       - Transaction ID (format: TX followed by 6 digits)
+    4. After getting both IDs, do not ask any more questions
+    5. Reset context after showing the status
+    
+    Format your response as JSON with these fields:
+    {{
+        "intent": "Dispute Status",
+        "response": "your message to the user",
+        "options": [],
+        "context_updates": {{
+            "intent": "Dispute Status",
+            "user_id": null,
+            "transaction_id": null,
+            "dispute_type": null,
+            "dispute_details": {{}}
+        }}
+    }}
+    """.format(context)
+
+def get_new_dispute_prompt(context):
+    return """
+    You are a PayPal Dispute Filing Agent. Your role is to help customers file new disputes.
+    
+    Current context: {}
+    
+    Follow these steps in order:
+    1. Ask for User ID (format: U followed by 6 digits)
+    2. Ask for Transaction ID (format: TX followed by 6 digits)
+    3. Present these dispute options:
+       * Item Not Received (INR)
+       * Item not as Described (SNAD)
+       * Unauthorized Activity (UNAUTH)
+    
+    After dispute type selection:
+    For INR:
+    1. Ask: "What was the expected delivery date?"
+    2. Ask: "Have you contacted the seller? (Yes/No)"
+    
+    For SNAD:
+    1. Ask: "What's wrong with the item? Describe the issues."
+    2. Ask: "Have you contacted the seller? (Yes/No)"
+    
+    For UNAUTH:
+    1. Ask: "Do you recognize the merchant? (Yes/No)"
+    2. Ask: "Have you contacted your bank? (Yes/No)"
+    
+    Format your response as JSON with these fields:
+    {{
+        "intent": "File New Dispute",
+        "response": "your message to the user",
+        "options": [],
+        "context_updates": {{
+            "intent": "File New Dispute",
+            "user_id": null,
+            "transaction_id": null,
+            "dispute_type": null,
+            "dispute_details": {{}}
+        }}
+    }}
+    """.format(context)
+
+def process_message(message, context):
+    # If we're in dispute status flow or message indicates status check
+    is_status_check = (
+        (context and context.get('intent') == 'Dispute Status') or
+        any(word in message.lower() for word in ['status', 'check', 'track', 'progress'])
+    )
+    
+    # Choose appropriate prompt based on context
+    if is_status_check:
+        system_prompt = get_dispute_status_prompt(context)
+    else:
+        system_prompt = get_new_dispute_prompt(context)
+
+
+    try:
+        # Format user message separately to avoid nested f-strings
+        user_message = "Context: " + str(context) + "\nUser message: " + message
+        
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0,
+            max_tokens=500
+        )
+        result = response.choices[0].message.content.strip()
+        
+        # Format debug message separately
+        debug_msg = "Processed message: '" + message + "' with context " + str(context) + "\nResult: " + result
+        print(debug_msg)
         
         # Parse the response as JSON string
         import json
@@ -163,26 +227,7 @@ def process_message(message, context):
             print(f"Error parsing JSON response: {str(e)}\nResponse was: {result}")
             return {
                 "intent": "Error",
-                "message": "I encountered an error processing your request. Please try again.",
-                "options": ["Start over"],
-                "context_updates": {}
-            }
-    except Exception as e:
-        print(f"Error in OpenAI API call: {str(e)}")
-        return {
-            "intent": "Error",
-            "message": "I encountered an error. Please try again.",
-            "options": ["Start over"],
-            "context_updates": {}
-        }
-        import json
-        try:
-            return json.loads(result)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing JSON response: {str(e)}\nResponse was: {result}")
-            return {
-                "intent": "Error",
-                "message": "I encountered an error processing your request. Please try again.",
+                "response": "I encountered an error processing your request. Please try again.",
                 "options": ["Start over"],
                 "context_updates": {}
             }
@@ -211,39 +256,63 @@ def chat():
         if isinstance(result, dict):
             if result.get('intent') == 'Conclude':
                 reset_conversation_context()
+                ctx = get_conversation_context(None)
             elif result.get('context_updates'):
                 update_conversation_context(result['context_updates'])
-                ctx = get_conversation_context(None)
+            
+            # Get updated context
+            ctx = get_conversation_context(None)
             
             # Handle dispute status queries
             if result.get('intent') == 'Dispute Status':
                 # Always require both user_id and transaction_id
-                if not ctx.get('user_id'):
+                if not ctx or not ctx.get('user_id'):
                     result['response'] = "Please provide your User ID (format: U followed by 6 digits)"
-                    result['context_updates'] = {'user_id': None, 'transaction_id': None}
+                    result['context_updates'] = {'intent': 'Dispute Status', 'user_id': None, 'transaction_id': None}
                 elif not ctx.get('transaction_id'):
                     result['response'] = "Please provide the Transaction ID (format: TX followed by 6 digits)"
-                    result['context_updates'] = {'transaction_id': None}
+                    result['context_updates'] = {'intent': 'Dispute Status', 'transaction_id': None}
                 else:
-                    # Verify transaction belongs to user
-                    transaction = db.verify_transaction(ctx['transaction_id'], ctx['user_id'])
-                    if not transaction:
-                        result['response'] = "This transaction doesn't belong to your account."
+                    # First check back office case status
+                    case, outcome = back_office.get_case_status(
+                        transaction_id=ctx['transaction_id'],
+                        user_id=ctx['user_id']
+                    )
+                    
+                    if case:
+                        result.update({
+                            'response': outcome,
+                            'case': {
+                                'case_id': case.get('case_id'),
+                                'fraud_buyer': case.get('fraud_buyer'),
+                                'fraud_seller': case.get('fraud_seller'),
+                                'case_outcome_confidence': case.get('case_outcome_confidence'),
+                                'favor_party': case.get('favor_party')
+                            },
+                            'outcome': outcome
+                        })
                     else:
+                        # If no case found, check if dispute exists
                         dispute = db.get_dispute_status(transaction_id=ctx['transaction_id'])
                         if dispute:
-                            result['response'] = (
-                                f"Status for transaction {ctx['transaction_id']}:\n" +
-                                f"Type: {dispute['type']}\n" +
-                                f"Status: {dispute['status']}\n" +
-                                f"Created: {dispute['creation_date']}\n" +
-                                f"Details: {dispute.get('details', 'No additional details')}"
-                            )
+                            result.update({
+                                'response': (
+                                    f"Status for transaction {ctx['transaction_id']}:\n" +
+                                    f"Type: {dispute['type']}\n" +
+                                    f"Status: {dispute['status']}\n" +
+                                    f"Created: {dispute['creation_date']}\n\n" +
+                                    "Your case is currently under initial review."
+                                ),
+                                'case': None
+                            })
                         else:
-                            result['response'] = f"No dispute found for transaction {ctx['transaction_id']}"
-                        
-                        # Reset context after showing status
-                        reset_conversation_context()
+                            result.update({
+                                'response': f"No dispute found for transaction {ctx['transaction_id']}",
+                                'case': None
+                            })
+                    
+                    # Reset context after showing status
+                    reset_conversation_context()
             
             # Handle new dispute creation
             elif result.get('intent') == 'File New Dispute' and \
@@ -280,7 +349,9 @@ def chat():
             'intent': result.get('intent'),
             'message': result.get('response') or result.get('message'),
             'options': result.get('options', []),
-            'context_updates': result.get('context_updates', {})
+            'context_updates': result.get('context_updates', {}),
+            'case': result.get('case'),
+            'outcome': result.get('outcome')
         }
         
         return jsonify(response_data)

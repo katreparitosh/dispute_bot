@@ -3,45 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PayPal Dispute Agent</title>
+    <title>PayPal Dispute AI Agent</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="app-container">
-        <div class="chat-container">
-            <div class="chat-header">
-                <img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" alt="PayPal Logo" class="logo">
-                <h1>PayPal Dispute Agent</h1>
-            </div>
-            <div class="chat-messages" id="chatMessages">
-                <!-- Messages will be added here dynamically -->
-            </div>
-            <div class="options-container" id="optionsContainer">
-                <!-- Option buttons will be added here dynamically -->
-            </div>
-            <div class="chat-input">
-                <textarea id="userInput" placeholder="Type your message here..." rows="2"></textarea>
-                <button id="sendButton">Send</button>
-            </div>
-        </div>
-        <div class="state-panel">
-            <h2>Conversation State</h2>
-            <div class="state-content" id="stateContent">
-                <div class="state-item">
-                    <span class="state-label">Intent Detection:</span>
-                    <span class="state-value" id="currentIntent">-</span>
+        <div class="main-content">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="header-content">
+                        <img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" alt="PayPal Logo" class="logo">
+                        <div class="header-text">
+                            <h1>PayPal Dispute Agent</h1>
+                            <p class="subtitle">Future of Agentic Dispute Resolution</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="state-item">
-                    <span class="state-label">User ID:</span>
-                    <span class="state-value" id="currentUserId">-</span>
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Messages will be added here dynamically -->
                 </div>
-                <div class="state-item">
-                    <span class="state-label">Transaction ID:</span>
-                    <span class="state-value" id="currentTransactionId">-</span>
+                <div class="options-container" id="optionsContainer">
+                    <!-- Option buttons will be added here dynamically -->
                 </div>
-                <div class="state-item">
-                    <span class="state-label">Dispute Type:</span>
-                    <span class="state-value" id="currentDisputeType">-</span>
+                <div class="chat-input">
+                    <textarea id="userInput" placeholder="Type your message here..." rows="2"></textarea>
+                    <button id="sendButton">Send</button>
+                </div>
+            </div>
+            <div class="side-panels">
+                <div class="bo-panel">
+                    <h2>Back Office (BO) Agent - Case Adjudication</h2>
+                    <div class="bo-content" id="boContent">
+                        <div class="bo-item">
+                            <span class="bo-label">Fraud Buyer:</span>
+                            <span class="bo-value" id="fraudBuyer">-</span>
+                        </div>
+                        <div class="bo-item">
+                            <span class="bo-label">Fraud Seller:</span>
+                            <span class="bo-value" id="fraudSeller">-</span>
+                        </div>
+                        <div class="bo-item">
+                            <span class="bo-label">Case Confidence:</span>
+                            <span class="bo-value" id="caseConfidence">-</span>
+                        </div>
+                        <div class="bo-item">
+                            <span class="bo-label">Favor Party:</span>
+                            <span class="bo-value" id="favorParty">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="state-panel">
+                    <h2>Conversational State</h2>
+                    <div class="state-content" id="stateContent">
+                        <div class="state-item">
+                            <span class="state-label">Customer Intent</span>
+                            <span class="state-value" id="currentIntent">-</span>
+                        </div>
+                        <div class="state-item">
+                            <span class="state-label">User ID:</span>
+                            <span class="state-value" id="currentUserId">-</span>
+                        </div>
+                        <div class="state-item">
+                            <span class="state-label">Transaction ID:</span>
+                            <span class="state-value" id="currentTransactionId">-</span>
+                        </div>
+                        <div class="state-item">
+                            <span class="state-label">Dispute Type:</span>
+                            <span class="state-value" id="currentDisputeType">-</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
