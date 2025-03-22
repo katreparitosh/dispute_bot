@@ -1,5 +1,21 @@
 // API base URL
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'http://localhost:8000';
+
+// Function to add a message to the chat
+function addMessage(text, sender) {
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', `${sender}-message`);
+        messageDiv.textContent = text;
+        chatMessages.appendChild(messageDiv);
+        // Scroll to bottom
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
+
+// Add initial bot message immediately when script loads
+addMessage("Hello! I'm your PayPal Dispute Assistant. I can help you file a new dispute or check the status of an existing one. How can I help you today?", 'bot');
 
 document.addEventListener('DOMContentLoaded', () => {
     // Get DOM elements and verify they exist
@@ -10,14 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
         optionsContainer: document.getElementById('optionsContainer'),
         // State panel elements
         currentIntent: document.getElementById('currentIntent'),
-        currentUserId: document.getElementById('currentUserId'),
         currentTransactionId: document.getElementById('currentTransactionId'),
         currentDisputeType: document.getElementById('currentDisputeType'),
         // Back Office panel elements
         fraudBuyer: document.getElementById('fraudBuyer'),
-        fraudSeller: document.getElementById('fraudSeller'),
-        caseConfidence: document.getElementById('caseConfidence'),
-        favorParty: document.getElementById('favorParty')
+        fraudSeller: document.getElementById('fraudSeller')
     };
 
     // Verify all required elements exist
@@ -31,27 +44,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // Destructure elements for easier access
     const {
         chatMessages, userInput, sendButton, optionsContainer,
-        currentIntent, currentUserId, currentTransactionId, currentDisputeType,
-        caseId, fraudBuyer, fraudSeller
+        currentIntent, currentTransactionId, currentDisputeType,
+        fraudBuyer, fraudSeller
     } = elements;
-
-    // Reset conversation context and initialize UI when page loads
+    
+    // Reset conversation context
     fetch(`${API_BASE_URL}/api/reset`, {
         method: 'POST'
     }).then(() => {
         // Reset state panel
         updateStatePanel({
             intent: 'Initial Greeting',
-            userId: '-',
             transactionId: '-',
             disputeType: '-'
         });
-        // Add initial bot message
-        addMessage("Hello! I'm your PayPal Dispute Assistant. I can help you file a new dispute or check the status of an existing one. How can I help you today?", 'bot');
     }).catch(error => {
         console.error('Error resetting conversation:', error);
-        // Still show initial message even if reset fails
-        addMessage("Hello! I'm your PayPal Dispute Assistant. How can I help you today?", 'bot');
     });
 
     // Handle send button click
@@ -78,28 +86,96 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function addMessage(text, sender) {
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', `${sender}-message`);
-        messageDiv.textContent = text;
-        chatMessages.appendChild(messageDiv);
-        // Scroll to bottom
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+
 
     function showOptions(options) {
         optionsContainer.innerHTML = '';
         if (!options || options.length === 0) return;
         
+        // Check if these are transaction options
+        const isTransactionList = options[0].includes('$') && options[0].includes('ID:');
+        
+        if (isTransactionList) {
+            // Add header for transactions
+            const header = document.createElement('div');
+            header.classList.add('transaction-list-header');
+            header.textContent = 'Here is the list. Which one do you need help with?';
+            optionsContainer.appendChild(header);
+        }
+        
         options.forEach(option => {
             const button = document.createElement('button');
             button.classList.add('option-button');
-            button.textContent = option;
-            button.addEventListener('click', () => {
-                addMessage(option, 'user');
-                optionsContainer.innerHTML = '';
-                processUserMessage(option);
-            });
+            
+            // Check if this is a dispute or transaction option
+            const disputeMatch = option.match(/([^-]+) - \$(\d+\.\d+) \(([^)]+)\) \(ID: (DSP[^)]+)\)/);
+            const transactionMatch = option.match(/([^-]+) - \$(\d+\.\d+) \(ID: (TX\d+)\)/);
+            
+            if (disputeMatch) {
+                // Create dispute row with merchant, amount, and type
+                const [_, merchant, amount, type, disputeId] = disputeMatch;
+                
+                const disputeRow = document.createElement('div');
+                disputeRow.classList.add('dispute-row');
+                
+                const merchantDiv = document.createElement('div');
+                merchantDiv.classList.add('dispute-merchant');
+                merchantDiv.textContent = merchant;
+                
+                const amountDiv = document.createElement('div');
+                amountDiv.classList.add('dispute-amount');
+                amountDiv.textContent = `$${amount}`;
+                
+                const typeDiv = document.createElement('div');
+                typeDiv.classList.add('dispute-type');
+                typeDiv.textContent = type;
+                
+                disputeRow.appendChild(merchantDiv);
+                disputeRow.appendChild(amountDiv);
+                disputeRow.appendChild(typeDiv);
+                
+                button.appendChild(disputeRow);
+                
+                button.addEventListener('click', () => {
+                    addMessage(`${merchant} - $${amount} (${type})`, 'user');
+                    optionsContainer.innerHTML = '';
+                    processUserMessage(`dispute_id:${disputeId}`);
+                });
+            } else if (transactionMatch) {
+                // Create transaction row with merchant and amount
+                const [_, merchant, amount, transactionId] = transactionMatch;
+                
+                const transactionRow = document.createElement('div');
+                transactionRow.classList.add('transaction-row');
+                
+                const merchantDiv = document.createElement('div');
+                merchantDiv.classList.add('transaction-merchant');
+                merchantDiv.textContent = merchant;
+                
+                const amountDiv = document.createElement('div');
+                amountDiv.classList.add('transaction-amount');
+                amountDiv.textContent = `$${amount}`;
+                
+                transactionRow.appendChild(merchantDiv);
+                transactionRow.appendChild(amountDiv);
+                
+                button.appendChild(transactionRow);
+                
+                button.addEventListener('click', () => {
+                    addMessage(`${merchant} - $${amount}`, 'user');
+                    optionsContainer.innerHTML = '';
+                    processUserMessage(transactionId);
+                });
+            } else {
+                // For non-transaction options
+                button.textContent = option;
+                button.addEventListener('click', () => {
+                    addMessage(option, 'user');
+                    optionsContainer.innerHTML = '';
+                    processUserMessage(option);
+                });
+            }
+            
             optionsContainer.appendChild(button);
         });
     }
@@ -110,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sendButton.disabled = true;
             userInput.disabled = true;
             
+            console.log('Sending message:', message);
             // Make API call to backend
             const response = await fetch(`${API_BASE_URL}/api/chat`, {
                 method: 'POST',
@@ -119,11 +196,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ message })
             });
 
+            console.log('Response status:', response.status);
+            const responseText = await response.text();
+            console.log('Response text:', responseText);
+
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`Network response was not ok: ${response.status} ${responseText}`);
             }
 
-            const data = await response.json();
+            const data = JSON.parse(responseText);
+            console.log('Parsed data:', data);
             
             if (data.error) {
                 throw new Error(data.error);
@@ -132,14 +214,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update conversation state panel
             updateStatePanel({
                 intent: data.intent || '-',
-                userId: data.context_updates?.user_id || currentUserId.textContent,
                 transactionId: data.context_updates?.transaction_id || currentTransactionId.textContent,
                 disputeType: data.context_updates?.dispute_type || currentDisputeType.textContent
             });
 
             // Add bot response
-            if (data.message) {
-                addMessage(data.message, 'bot');
+            if (data.response) {
+                addMessage(data.response, 'bot');
             }
 
             // Show options if available
@@ -162,7 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset state panel on error
             updateStatePanel({
                 intent: 'Error',
-                userId: '-',
                 transactionId: '-',
                 disputeType: '-'
             });
@@ -176,7 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStatePanel(state) {
         // Update state panel with new values, keeping existing ones if not provided
         currentIntent.textContent = state.intent || '-';
-        currentUserId.textContent = state.userId || '-';
         currentTransactionId.textContent = state.transactionId || '-';
         currentDisputeType.textContent = state.disputeType || '-';
     }
@@ -188,23 +267,60 @@ document.addEventListener('DOMContentLoaded', () => {
             fraudBuyer.className = 'bo-value';
             fraudSeller.textContent = '-';
             fraudSeller.className = 'bo-value';
-            caseConfidence.textContent = '-';
-            favorParty.textContent = '-';
+            bpEligibility.textContent = '-';
+            fraudCollusion.textContent = '-';
+            adjudicationOutcome.textContent = '-';
+            payoutAmount.textContent = '-';
             return;
         }
 
-        // Update fraud buyer status with color coding
-        const isFraudBuyer = parseInt(data.case.fraud_buyer) === 1;
-        fraudBuyer.textContent = isFraudBuyer ? 'Yes' : 'No';
-        fraudBuyer.className = 'bo-value ' + (isFraudBuyer ? 'fraud-true' : 'fraud-false');
-        
-        // Update fraud seller status with color coding
-        const isFraudSeller = parseInt(data.case.fraud_seller) === 1;
-        fraudSeller.textContent = isFraudSeller ? 'Yes' : 'No';
-        fraudSeller.className = 'bo-value ' + (isFraudSeller ? 'fraud-true' : 'fraud-false');
+        // Update BP Eligibility first as it determines other fields
+        const eligibilityStatus = data.case.bp_eligibility_model.charAt(0).toUpperCase() + data.case.bp_eligibility_model.slice(1);
+        bpEligibility.textContent = eligibilityStatus;
+        bpEligibility.className = 'bo-value ' + (data.case.bp_eligibility_model === 'eligible' ? 'fraud-false' : 'fraud-true');
 
-        // Update case confidence and favor party
-        caseConfidence.textContent = data.case.case_outcome_confidence + '%';
-        favorParty.textContent = data.case.favor_party;
+        if (data.case.bp_eligibility_model === 'ineligible') {
+            // Set all other fields to N/A for ineligible cases
+            fraudBuyer.textContent = 'N/A';
+            fraudBuyer.className = 'bo-value';
+            fraudSeller.textContent = 'N/A';
+            fraudSeller.className = 'bo-value';
+            fraudCollusion.textContent = 'N/A';
+            fraudCollusion.className = 'bo-value';
+            adjudicationOutcome.textContent = 'N/A';
+            adjudicationOutcome.className = 'bo-value';
+        } else {
+            // Function to format risk value
+            const formatRisk = (value) => {
+                if (value === null || value === undefined) return '-';
+                return (value * 100).toFixed(1) + '%';
+            };
+
+            // Function to get risk class
+            const getRiskClass = (value, threshold) => {
+                if (value === null || value === undefined) return '';
+                return value * 100 > threshold ? 'fraud-true' : 'fraud-false';
+            };
+
+            // Update fraud buyer risk
+            fraudBuyer.textContent = formatRisk(data.case.fraud_buyer);
+            fraudBuyer.className = 'bo-value ' + getRiskClass(data.case.fraud_buyer, 70);
+            
+            // Update fraud seller risk
+            fraudSeller.textContent = formatRisk(data.case.fraud_seller);
+            fraudSeller.className = 'bo-value ' + getRiskClass(data.case.fraud_seller, 70);
+
+            // Update fraud collusion risk
+            fraudCollusion.textContent = formatRisk(data.case.fraud_dispute_collusion);
+            fraudCollusion.className = 'bo-value ' + getRiskClass(data.case.fraud_dispute_collusion, 80);
+
+            // Update adjudication outcome
+            adjudicationOutcome.textContent = formatRisk(data.case.adjudication_case_outcome_model);
+            adjudicationOutcome.className = 'bo-value ' + getRiskClass(data.case.adjudication_case_outcome_model, 50);
+
+            // Update payout amount
+            const amount = data.case.payout_sensitivity_model;
+            payoutAmount.textContent = amount ? `$${parseFloat(amount).toFixed(2)}` : '-';
+        }
     }
 });

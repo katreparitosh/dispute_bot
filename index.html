@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PayPal Dispute AI Agent</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
 </head>
 <body>
     <div class="app-container">
@@ -14,7 +15,7 @@
                     <div class="header-content">
                         <img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" alt="PayPal Logo" class="logo">
                         <div class="header-text">
-                            <h1>PayPal Dispute Agent</h1>
+                            <h1>PayPal Dispute AI Agent</h1>
                             <p class="subtitle">Future of Agentic Dispute Resolution</p>
                         </div>
                     </div>
@@ -32,23 +33,33 @@
             </div>
             <div class="side-panels">
                 <div class="bo-panel">
-                    <h2>Back Office (BO) Agent - Case Adjudication</h2>
+                    <h2>BO Agent Insights </h2>
+                <p class="subtitle">Printed only for Demo Purposes</p>
+                <br>
                     <div class="bo-content" id="boContent">
                         <div class="bo-item">
-                            <span class="bo-label">Fraud Buyer:</span>
+                            <span class="bo-label">Buyer Fraud Risk:</span>
                             <span class="bo-value" id="fraudBuyer">-</span>
                         </div>
                         <div class="bo-item">
-                            <span class="bo-label">Fraud Seller:</span>
+                            <span class="bo-label">Seller Fraud Risk:</span>
                             <span class="bo-value" id="fraudSeller">-</span>
                         </div>
                         <div class="bo-item">
-                            <span class="bo-label">Case Confidence:</span>
-                            <span class="bo-value" id="caseConfidence">-</span>
+                            <span class="bo-label">BP Eligibility:</span>
+                            <span class="bo-value" id="bpEligibility">-</span>
                         </div>
                         <div class="bo-item">
-                            <span class="bo-label">Favor Party:</span>
-                            <span class="bo-value" id="favorParty">-</span>
+                            <span class="bo-label">Payout Amount:</span>
+                            <span class="bo-value" id="payoutAmount">-</span>
+                        </div>
+                        <div class="bo-item">
+                            <span class="bo-label">Fraud Collusion Risk:</span>
+                            <span class="bo-value" id="fraudCollusion">-</span>
+                        </div>
+                        <div class="bo-item">
+                            <span class="bo-label">Adjudication Outcome:</span>
+                            <span class="bo-value" id="adjudicationOutcome">-</span>
                         </div>
                     </div>
                 </div>
@@ -59,10 +70,7 @@
                             <span class="state-label">Customer Intent</span>
                             <span class="state-value" id="currentIntent">-</span>
                         </div>
-                        <div class="state-item">
-                            <span class="state-label">User ID:</span>
-                            <span class="state-value" id="currentUserId">-</span>
-                        </div>
+
                         <div class="state-item">
                             <span class="state-label">Transaction ID:</span>
                             <span class="state-value" id="currentTransactionId">-</span>
@@ -76,6 +84,5 @@
             </div>
         </div>
     </div>
-    <script src="script.js"></script>
 </body>
 </html>

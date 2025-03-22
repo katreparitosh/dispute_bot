@@ -3,6 +3,8 @@ from flask_cors import CORS
 import openai
 from dotenv import load_dotenv
 import os
+import json
+from back_office_handler import BackOfficeHandler
 import pandas as pd
 from db_handler import DatabaseHandler
 from back_office_handler import BackOfficeHandler
@@ -11,7 +13,13 @@ from back_office_handler import BackOfficeHandler
 load_dotenv()
 
 app = Flask(__name__, static_url_path='', static_folder='.')
-CORS(app)
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 db = DatabaseHandler()
 back_office = BackOfficeHandler()
 
@@ -123,21 +131,20 @@ def get_dispute_status_prompt(context):
     Follow these rules strictly:
     1. ALWAYS maintain "Dispute Status" as the intent
     2. NEVER suggest filing a new dispute
-    3. ONLY ask for these details in order:
-       - User ID (format: U followed by 6 digits)
-       - Transaction ID (format: TX followed by 6 digits)
-    4. After getting both IDs, do not ask any more questions
+    3. If no dispute is selected:
+       - Ask the user to select a dispute from the list
+    4. After getting the Dispute ID, show its status
     5. Reset context after showing the status
     
     Format your response as JSON with these fields:
     {{
         "intent": "Dispute Status",
         "response": "your message to the user",
+        "show_disputes": true,  # Set to true when you want to show dispute list
         "options": [],
         "context_updates": {{
             "intent": "Dispute Status",
-            "user_id": null,
-            "transaction_id": null,
+            "dispute_id": null,
             "dispute_type": null,
             "dispute_details": {{}}
         }}
@@ -151,9 +158,9 @@ def get_new_dispute_prompt(context):
     Current context: {}
     
     Follow these steps in order:
-    1. Ask for User ID (format: U followed by 6 digits)
-    2. Ask for Transaction ID (format: TX followed by 6 digits)
-    3. Present these dispute options:
+    1. If no transaction is selected:
+       - Ask the user to select a transaction from the list
+    2. If no dispute type, present these dispute options:
        * Item Not Received (INR)
        * Item not as Described (SNAD)
        * Unauthorized Activity (UNAUTH)
@@ -175,10 +182,10 @@ def get_new_dispute_prompt(context):
     {{
         "intent": "File New Dispute",
         "response": "your message to the user",
+        "show_transactions": true,  # Set to true when you want to show transaction list
         "options": [],
         "context_updates": {{
             "intent": "File New Dispute",
-            "user_id": null,
             "transaction_id": null,
             "dispute_type": null,
             "dispute_details": {{}}
@@ -214,6 +221,7 @@ def process_message(message, context):
             max_tokens=500
         )
         result = response.choices[0].message.content.strip()
+        print(f"OpenAI response: {result}")
         
         # Format debug message separately
         debug_msg = "Processed message: '" + message + "' with context " + str(context) + "\nResult: " + result
@@ -232,10 +240,11 @@ def process_message(message, context):
                 "context_updates": {}
             }
     except Exception as e:
-        print(f"Error in OpenAI API call: {str(e)}")
+        import traceback
+        print(f"Error in OpenAI API call:\n{traceback.format_exc()}")
         return {
             "intent": "Error",
-            "response": "I encountered an error. Please try again.",
+            "response": f"I encountered an error: {str(e)}",
             "options": ["Start over"],
             "context_updates": {}
         }
@@ -243,14 +252,19 @@ def process_message(message, context):
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:
+        print("Received chat request")
         data = request.json
+        print(f"Request data: {data}")
         user_message = data.get('message', '')
+        print(f"User message: {user_message}")
         
         # Get current conversation context
         context = get_conversation_context(None)
         
         # Process the message with context
+        print(f"Processing message with context: {context}")
         result = process_message(user_message, context)
+        print(f"Process result: {result}")
         
         # Handle concluding statements by resetting context
         if isinstance(result, dict):
@@ -263,60 +277,69 @@ def chat():
             # Get updated context
             ctx = get_conversation_context(None)
             
+            # Extract dispute ID from user selection
+            if '(ID:' in user_message:
+                dispute_id = user_message.split('(ID:')[1].strip().rstrip(')')
+                print(f"Extracted dispute ID: {dispute_id}")
+                ctx['dispute_id'] = dispute_id  # Update context immediately
+                result['context_updates'] = {'dispute_id': dispute_id, 'intent': 'Dispute Status'}
+                result['intent'] = 'Dispute Status'
+            
             # Handle dispute status queries
             if result.get('intent') == 'Dispute Status':
-                # Always require both user_id and transaction_id
-                if not ctx or not ctx.get('user_id'):
-                    result['response'] = "Please provide your User ID (format: U followed by 6 digits)"
-                    result['context_updates'] = {'intent': 'Dispute Status', 'user_id': None, 'transaction_id': None}
-                elif not ctx.get('transaction_id'):
-                    result['response'] = "Please provide the Transaction ID (format: TX followed by 6 digits)"
-                    result['context_updates'] = {'intent': 'Dispute Status', 'transaction_id': None}
+                # Check if we have a dispute ID in the context
+                print(f"Current context: {ctx}")
+                if not ctx.get('dispute_id'):
+                    result['response'] = "Please choose the dispute you want to check from the list below."
+                    result['context_updates'] = {'intent': 'Dispute Status'}
                 else:
-                    # First check back office case status
-                    case, outcome = back_office.get_case_status(
-                        transaction_id=ctx['transaction_id'],
-                        user_id=ctx['user_id']
-                    )
+                    print(f"Looking up dispute with ID: {ctx['dispute_id']}")
+                    # Get dispute status and back office case details
+                    dispute_id = ctx['dispute_id']
+                    print(f"Looking up dispute with ID: {dispute_id}")
                     
-                    if case:
-                        result.update({
-                            'response': outcome,
-                            'case': {
-                                'case_id': case.get('case_id'),
-                                'fraud_buyer': case.get('fraud_buyer'),
-                                'fraud_seller': case.get('fraud_seller'),
-                                'case_outcome_confidence': case.get('case_outcome_confidence'),
-                                'favor_party': case.get('favor_party')
-                            },
-                            'outcome': outcome
-                        })
+                    # Get back office case details and outcome message directly
+                    back_office = BackOfficeHandler()
+                    case_dict, outcome = back_office.get_case_status(dispute_id=dispute_id)
+                    print(f"Back office case details: {case_dict}")
+                    
+                    if not case_dict:
+                        result['response'] = "No dispute found."
+                        result['context_updates'] = {'intent': None}
                     else:
-                        # If no case found, check if dispute exists
-                        dispute = db.get_dispute_status(transaction_id=ctx['transaction_id'])
-                        if dispute:
-                            result.update({
-                                'response': (
-                                    f"Status for transaction {ctx['transaction_id']}:\n" +
-                                    f"Type: {dispute['type']}\n" +
-                                    f"Status: {dispute['status']}\n" +
-                                    f"Created: {dispute['creation_date']}\n\n" +
-                                    "Your case is currently under initial review."
-                                ),
-                                'case': None
-                            })
-                        else:
-                            result.update({
-                                'response': f"No dispute found for transaction {ctx['transaction_id']}",
-                                'case': None
-                            })
+                        
+                        # Set response message from back office outcome
+                        response = outcome
+                        
+                        # Add back office case details to panel only
+                        if case_dict:
+                            print(f"Case dict from back office: {case_dict}")
+                            # Convert any NaN values to None for proper JSON serialization
+                            def clean_value(val):
+                                import math
+                                if isinstance(val, float) and math.isnan(val):
+                                    return None
+                                return val
+
+                            result['case'] = {
+                                'fraud_buyer': clean_value(case_dict['fraud_buyer']),
+                                'fraud_seller': clean_value(case_dict['fraud_seller']),
+                                'fraud_dispute_collusion': clean_value(case_dict['fraud_dispute_collusion']),
+                                'adjudication_case_outcome_model': clean_value(case_dict['adjudication_case_outcome_model']),
+                                'bp_eligibility_model': case_dict['bp_eligibility_model'],
+                                'payout_sensitivity_model': clean_value(case_dict.get('payout_sensitivity_model'))
+                            }
+                            print(f"Result case data: {result['case']}")
+                        result['response'] = response
+                        result['context_updates'] = {'intent': None}
+                        result['show_disputes'] = False
                     
                     # Reset context after showing status
                     reset_conversation_context()
             
             # Handle new dispute creation
             elif result.get('intent') == 'File New Dispute' and \
-                 all([ctx.get('user_id'), ctx.get('transaction_id'), ctx.get('dispute_type')]) and \
+                 all([ctx.get('transaction_id'), ctx.get('dispute_type')]) and \
                  ctx.get('dispute_details'):
                 
                 # Only try to create dispute if we have all required details
@@ -332,7 +355,6 @@ def chat():
                 
                 if not missing_fields:
                     dispute, message = db.create_dispute(
-                        ctx['user_id'],
                         ctx['transaction_id'],
                         ctx['dispute_type'],
                         ctx['dispute_details']
@@ -344,26 +366,45 @@ def chat():
                     else:
                         result['response'] = f"Error creating dispute: {message}"
         
+        # Get transactions if needed
+        transactions = None
+        if result.get('show_transactions', False):
+            transactions = db.get_all_transactions()
+            # Format transactions for display
+            transaction_options = [f"{t['merchant_seller']} - ${t['amount']} (ID: {t['transaction_id']})" for t in transactions]
+            result['options'] = transaction_options
+            
+        # Get disputes if needed
+        disputes = None
+        if result.get('show_disputes', False):
+            disputes = db.get_all_disputes()
+            # Format disputes for display
+            dispute_options = [f"{d['merchant']} - ${d['amount']} ({d['type']}) (ID: {d['dispute_id']})" for d in disputes]
+            result['options'] = dispute_options
+
         # Convert response to message format for frontend
         response_data = {
             'intent': result.get('intent'),
-            'message': result.get('response') or result.get('message'),
+            'response': result.get('response') or result.get('message'),
             'options': result.get('options', []),
             'context_updates': result.get('context_updates', {}),
             'case': result.get('case'),
-            'outcome': result.get('outcome')
+            'outcome': result.get('outcome'),
+            'transactions': transactions
         }
         
         return jsonify(response_data)
 
     except Exception as e:
-        error_msg = f"Error in chat endpoint: {str(e)}"
+        import traceback
+        error_msg = f"Error in chat endpoint:\n{traceback.format_exc()}"
         print(error_msg)
-        return jsonify({
+        response = jsonify({
             'intent': 'Error',
-            'message': 'An error occurred. Please try again.',
+            'response': f'An error occurred: {str(e)}',
             'options': ['Start over'],
             'context_updates': {}
         })
+        return response
 if __name__ == '__main__':
-    app.run(port=3000, debug=True)
+    app.run(port=8000, debug=True)

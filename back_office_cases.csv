@@ -1,5 +1,12 @@
-user_id,transaction_id,dispute_id,fraud_buyer,fraud_seller,case_outcome_confidence,favor_party
-U123456,TX789013,DSP55ca96bd,0,0,57,Buyer
-U123457,TX789012,DSP55ca96be,1,1,3.4,None
-U123458,TX789014,DSP55ca96bf,1,0,89,Seller
-U123456,TX123456,DSP628786ff,0,1,76,Buyer
+transaction_id,dispute_id,fraud_buyer,fraud_seller,bp_eligibility_model,fraud_dispute_collusion,adjudication_case_outcome_model,payout_sensitivity_model
+# Ineligible Cases
+TX789013,DSP55ca96bd,null,null,ineligible,null,null,null
+TX123456,DSP628786ff,null,null,ineligible,null,null,null
+# Instant Payout Cases
+TX789012,DSP9659998e,0.08,0.82,eligible,0.08,0.92,149.99
+TX789016,DSP55ca96bf,0.12,0.78,eligible,0.12,0.88,175.50
+TX789017,DSP55ca96bg,0.05,0.85,eligible,0.15,0.90,320.75
+# Wait for Seller Response Cases
+TX789018,DSP55ca96bh,0.10,0.45,eligible,0.15,0.35,null
+TX789019,DSP55ca96bi,0.08,0.52,eligible,0.12,0.42,null
+TX789020,DSP55ca96bj,0.15,0.48,eligible,0.18,0.38,null

@@ -7,18 +7,8 @@ class DatabaseHandler:
         self.transactions_file = 'transactions.csv'
         self.disputes_file = 'disputes.csv'
         
-    def get_user_transactions(self, user_id):
-        """Get all transactions for a specific user"""
-        try:
-            df = pd.read_csv(self.transactions_file)
-            user_transactions = df[df['user_id'] == user_id].to_dict('records')
-            return user_transactions
-        except Exception as e:
-            print(f"Error reading transactions: {str(e)}")
-            return []
-
-    def verify_transaction(self, transaction_id, user_id=None):
-        """Verify if a transaction exists and optionally belongs to the user"""
+    def get_transaction(self, transaction_id):
+        """Get transaction details by transaction_id"""
         try:
             df = pd.read_csv(self.transactions_file)
             transaction = df[df['transaction_id'] == transaction_id]
@@ -26,13 +16,20 @@ class DatabaseHandler:
             if transaction.empty:
                 return None
                 
-            if user_id and transaction.iloc[0]['user_id'] != user_id:
-                return None
-                
             return transaction.iloc[0].to_dict()
         except Exception as e:
-            print(f"Error verifying transaction: {str(e)}")
+            print(f"Error reading transaction: {str(e)}")
             return None
+            
+    def get_all_transactions(self):
+        """Get all transactions with merchant and amount"""
+        try:
+            df = pd.read_csv(self.transactions_file)
+            transactions = df[['transaction_id', 'merchant_seller', 'amount', 'date']].to_dict('records')
+            return transactions
+        except Exception as e:
+            print(f"Error reading transactions: {str(e)}")
+            return []
 
     def validate_dispute_reason(self, dispute_type, details):
         """Validate dispute reason and its required details"""
@@ -53,13 +50,13 @@ class DatabaseHandler:
             
         return True, "Valid dispute details"
 
-    def create_dispute(self, user_id, transaction_id, dispute_type, details):
+    def create_dispute(self, transaction_id, dispute_type, details):
         """Create a new dispute record with specific reason requirements"""
         try:
             # First verify the transaction
-            transaction = self.verify_transaction(transaction_id, user_id)
+            transaction = self.get_transaction(transaction_id)
             if not transaction:
-                return None, "Transaction not found or doesn't belong to user"
+                return None, "Transaction not found"
                 
             # Validate dispute type and details
             is_valid, message = self.validate_dispute_reason(dispute_type, details)
@@ -74,8 +71,9 @@ class DatabaseHandler:
                 disputes_df = pd.read_csv(self.disputes_file)
             except:
                 disputes_df = pd.DataFrame(columns=[
-                    'dispute_id', 'user_id', 'transaction_id', 
-                    'type', 'status', 'creation_date', 'description'
+                    'dispute_id', 'transaction_id', 
+                    'type', 'status', 'creation_date', 'description',
+                    'details', 'merchant', 'amount'
                 ])
 
             # Check if dispute already exists
@@ -88,13 +86,14 @@ class DatabaseHandler:
             # Create new dispute record
             new_dispute = {
                 'dispute_id': dispute_id,
-                'user_id': user_id,
                 'transaction_id': transaction_id,
                 'type': dispute_type,
                 'status': 'open',
                 'creation_date': datetime.now().strftime('%Y-%m-%d'),
                 'details': details,  # Store all the reason-specific details
-                'description': details.get('description', '')
+                'description': details.get('description', ''),
+                'merchant': transaction['merchant_seller'],  # Add merchant from transaction
+                'amount': transaction['amount']  # Add amount from transaction
             }
             
             # Append new dispute
@@ -106,19 +105,7 @@ class DatabaseHandler:
             print(f"Error creating dispute: {str(e)}")
             return None, f"Error creating dispute: {str(e)}"
 
-    def get_user_disputes(self, user_id):
-        """Get all disputes for a given user ID"""
-        try:
-            df = pd.read_csv(self.disputes_file)
-            user_disputes = df[df['user_id'] == user_id]
-            
-            if user_disputes.empty:
-                return None, "No disputes found for this user ID"
-            
-            return user_disputes.to_dict('records'), "Success"
-        except Exception as e:
-            print(f"Error retrieving disputes: {str(e)}")
-            return None, f"Error retrieving disputes: {str(e)}"
+
 
     def get_dispute_status(self, dispute_id=None, transaction_id=None):
         """Get status of a dispute by dispute_id or transaction_id"""
@@ -134,7 +121,47 @@ class DatabaseHandler:
             if dispute.empty:
                 return None
                 
-            return dispute.iloc[0].to_dict()
+            dispute_data = dispute.iloc[0].to_dict()
+            
+            # Get back office case details
+            bo_case = self.get_back_office_case(dispute_data['dispute_id'], dispute_data['transaction_id'])
+            if bo_case:
+                dispute_data.update(bo_case)
+                
+            return dispute_data
         except Exception as e:
             print(f"Error getting dispute status: {str(e)}")
             return None
+            
+    def get_back_office_case(self, dispute_id=None, transaction_id=None):
+        """Get back office case details by dispute_id or transaction_id"""
+        try:
+            df = pd.read_csv('back_office_cases.csv')
+            if dispute_id:
+                case = df[df['dispute_id'] == dispute_id]
+            elif transaction_id:
+                case = df[df['transaction_id'] == transaction_id]
+            else:
+                return None
+                
+            if case.empty:
+                return None
+                
+            return case.iloc[0].to_dict()
+        except Exception as e:
+            print(f"Error getting back office case: {str(e)}")
+            return None
+            
+    def get_all_disputes(self):
+        """Get all disputes with merchant, amount, and type"""
+        try:
+            df = pd.read_csv(self.disputes_file)
+            if df.empty:
+                return []
+            # Skip the comment row if present
+            df = df[~df['dispute_id'].str.startswith('#', na=False)]
+            disputes = df[['dispute_id', 'merchant', 'amount', 'type', 'status']].to_dict('records')
+            return disputes
+        except Exception as e:
+            print(f"Error reading disputes: {str(e)}")
+            return []

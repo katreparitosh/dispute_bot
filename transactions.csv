@@ -1,7 +1,7 @@
-user_id,transaction_id,amount,merchant_seller,date,status
-U123456,TX789012,149.99,Amazon Seller LLC,2025-02-15,completed
-U123456,TX789013,29.99,eBay Motors,2025-02-28,completed
-U123456,TX123456,79.99,Best Buy,2025-03-01,completed
-U789012,TX789015,199.99,Walmart Marketplace,2025-03-05,completed
-U789012,TX789016,45.99,Etsy Crafts Store,2025-03-08,completed
-U345678,TX789017,299.99,NewEgg,2025-03-10,completed
+transaction_id,amount,merchant_seller,date,status
+TX789012,149.99,Amazon Seller LLC,2025-02-15,completed
+TX789013,29.99,eBay Motors,2025-02-28,completed
+TX123456,79.99,Best Buy,2025-03-01,completed
+TX789015,199.99,Walmart Marketplace,2025-03-05,completed
+TX789016,45.99,Etsy Crafts Store,2025-03-08,completed
+TX789017,299.99,NewEgg,2025-03-10,completed

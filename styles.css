@@ -87,6 +87,7 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
 }
 
 .side-panels {
@@ -207,6 +208,7 @@ body {
     flex-direction: column;
     gap: 15px;
     max-height: calc(100vh - 250px);
+    justify-content: center;
 }
 
 .message {
@@ -231,23 +233,76 @@ body {
 .options-container {
     padding: 10px 20px;
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 50%;
+    margin: 0 auto;
+    flex-shrink: 0;
 }
 
 .option-button {
-    padding: 8px 16px;
-    background-color: #fff;
-    border: 2px solid #0070ba;
-    color: #0070ba;
-    border-radius: 20px;
+    width: 100%;
+    padding: 16px;
+    background-color: #ebefef;
+    border: 1px solid #eee;
+    color: #000;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    font-size: 1.1em;
 }
 
 .option-button:hover {
-    background-color: #0070ba;
-    color: white;
+    background-color: #f8f9fa;
+    border-color: #0070ba;
+}
+
+.transaction-row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
+}
+
+.dispute-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    width: 100%;
+    align-items: center;
+    gap: 10px;
+}
+
+.dispute-merchant,
+.dispute-amount,
+.dispute-type {
+    font-weight: 500;
+    color: #000;
+    font-size: 1.1em;
+}
+
+.transaction-merchant {
+    font-weight: 500;
+    color: #000;
+    font-size: 1.1em;
+}
+
+.transaction-amount {
+    font-weight: 500;
+    color: #000;
+    font-size: 1.1em;
+}
+
+.transaction-list-header {
+    padding: 10px 20px;
+    color: #666;
+    font-size: 1.1em;
+    font-weight: 500;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
 }
 
 .chat-input {
