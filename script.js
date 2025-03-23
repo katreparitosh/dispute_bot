@@ -1,4 +1,4 @@
-// API base URL
+// API Base URL
 const API_BASE_URL = 'http://localhost:8000';
 
 // Function to add a message to the chat
@@ -14,313 +14,348 @@ function addMessage(text, sender) {
     }
 }
 
-// Add initial bot message immediately when script loads
+// Add initial bot message
 addMessage("Hello! I'm your PayPal Dispute Assistant. I can help you file a new dispute or check the status of an existing one. How can I help you today?", 'bot');
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Get DOM elements and verify they exist
-    const elements = {
-        chatMessages: document.getElementById('chatMessages'),
-        userInput: document.getElementById('userInput'),
-        sendButton: document.getElementById('sendButton'),
-        optionsContainer: document.getElementById('optionsContainer'),
-        // State panel elements
-        currentIntent: document.getElementById('currentIntent'),
-        currentTransactionId: document.getElementById('currentTransactionId'),
-        currentDisputeType: document.getElementById('currentDisputeType'),
-        // Back Office panel elements
-        fraudBuyer: document.getElementById('fraudBuyer'),
-        fraudSeller: document.getElementById('fraudSeller')
-    };
-
-    // Verify all required elements exist
-    for (const [key, element] of Object.entries(elements)) {
-        if (!element) {
-            console.error(`Required element '${key}' not found in the DOM`);
-            return;
-        }
-    }
-
-    // Destructure elements for easier access
-    const {
-        chatMessages, userInput, sendButton, optionsContainer,
-        currentIntent, currentTransactionId, currentDisputeType,
-        fraudBuyer, fraudSeller
-    } = elements;
-    
-    // Reset conversation context
-    fetch(`${API_BASE_URL}/api/reset`, {
-        method: 'POST'
-    }).then(() => {
-        // Reset state panel
-        updateStatePanel({
-            intent: 'Initial Greeting',
-            transactionId: '-',
-            disputeType: '-'
-        });
-    }).catch(error => {
-        console.error('Error resetting conversation:', error);
-    });
-
-    // Handle send button click
-    sendButton.addEventListener('click', handleUserInput);
-
-    // Handle enter key press (with shift+enter for new line)
-    userInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleUserInput();
-        }
-    });
-
-    function handleUserInput() {
-        const message = userInput.value.trim();
+// Handle user input
+document.getElementById('userInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const message = this.value.trim();
         if (message) {
-            addMessage(message, 'user');
-            userInput.value = '';
-            // Clear any existing options
-            optionsContainer.innerHTML = '';
-            
-            // Process the user's message and generate a response
             processUserMessage(message);
         }
     }
+});
 
-
-
-    function showOptions(options) {
-        optionsContainer.innerHTML = '';
-        if (!options || options.length === 0) return;
-        
-        // Check if these are transaction options
-        const isTransactionList = options[0].includes('$') && options[0].includes('ID:');
-        
-        if (isTransactionList) {
-            // Add header for transactions
-            const header = document.createElement('div');
-            header.classList.add('transaction-list-header');
-            header.textContent = 'Here is the list. Which one do you need help with?';
-            optionsContainer.appendChild(header);
-        }
-        
-        options.forEach(option => {
-            const button = document.createElement('button');
-            button.classList.add('option-button');
-            
-            // Check if this is a dispute or transaction option
-            const disputeMatch = option.match(/([^-]+) - \$(\d+\.\d+) \(([^)]+)\) \(ID: (DSP[^)]+)\)/);
-            const transactionMatch = option.match(/([^-]+) - \$(\d+\.\d+) \(ID: (TX\d+)\)/);
-            
-            if (disputeMatch) {
-                // Create dispute row with merchant, amount, and type
-                const [_, merchant, amount, type, disputeId] = disputeMatch;
-                
-                const disputeRow = document.createElement('div');
-                disputeRow.classList.add('dispute-row');
-                
-                const merchantDiv = document.createElement('div');
-                merchantDiv.classList.add('dispute-merchant');
-                merchantDiv.textContent = merchant;
-                
-                const amountDiv = document.createElement('div');
-                amountDiv.classList.add('dispute-amount');
-                amountDiv.textContent = `$${amount}`;
-                
-                const typeDiv = document.createElement('div');
-                typeDiv.classList.add('dispute-type');
-                typeDiv.textContent = type;
-                
-                disputeRow.appendChild(merchantDiv);
-                disputeRow.appendChild(amountDiv);
-                disputeRow.appendChild(typeDiv);
-                
-                button.appendChild(disputeRow);
-                
-                button.addEventListener('click', () => {
-                    addMessage(`${merchant} - $${amount} (${type})`, 'user');
-                    optionsContainer.innerHTML = '';
-                    processUserMessage(`dispute_id:${disputeId}`);
-                });
-            } else if (transactionMatch) {
-                // Create transaction row with merchant and amount
-                const [_, merchant, amount, transactionId] = transactionMatch;
-                
-                const transactionRow = document.createElement('div');
-                transactionRow.classList.add('transaction-row');
-                
-                const merchantDiv = document.createElement('div');
-                merchantDiv.classList.add('transaction-merchant');
-                merchantDiv.textContent = merchant;
-                
-                const amountDiv = document.createElement('div');
-                amountDiv.classList.add('transaction-amount');
-                amountDiv.textContent = `$${amount}`;
-                
-                transactionRow.appendChild(merchantDiv);
-                transactionRow.appendChild(amountDiv);
-                
-                button.appendChild(transactionRow);
-                
-                button.addEventListener('click', () => {
-                    addMessage(`${merchant} - $${amount}`, 'user');
-                    optionsContainer.innerHTML = '';
-                    processUserMessage(transactionId);
-                });
-            } else {
-                // For non-transaction options
-                button.textContent = option;
-                button.addEventListener('click', () => {
-                    addMessage(option, 'user');
-                    optionsContainer.innerHTML = '';
-                    processUserMessage(option);
-                });
-            }
-            
-            optionsContainer.appendChild(button);
-        });
-    }
-
-    async function processUserMessage(message) {
-        try {
-            // Show loading state
-            sendButton.disabled = true;
-            userInput.disabled = true;
-            
-            console.log('Sending message:', message);
-            // Make API call to backend
-            const response = await fetch(`${API_BASE_URL}/api/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ message })
-            });
-
-            console.log('Response status:', response.status);
-            const responseText = await response.text();
-            console.log('Response text:', responseText);
-
-            if (!response.ok) {
-                throw new Error(`Network response was not ok: ${response.status} ${responseText}`);
-            }
-
-            const data = JSON.parse(responseText);
-            console.log('Parsed data:', data);
-            
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            
-            // Update conversation state panel
-            updateStatePanel({
-                intent: data.intent || '-',
-                transactionId: data.context_updates?.transaction_id || currentTransactionId.textContent,
-                disputeType: data.context_updates?.dispute_type || currentDisputeType.textContent
-            });
-
-            // Add bot response
-            if (data.response) {
-                addMessage(data.response, 'bot');
-            }
-
-            // Show options if available
-            if (data.options && Array.isArray(data.options)) {
-                showOptions(data.options);
-            }
-
-            // Update Back Office panel if case data is available
-            if (data.intent === 'Dispute Status' && data.case) {
-                updateBOPanel(data);
-            } else if (data.intent === 'Dispute Status' && !data.case) {
-                // Reset BO panel when checking status but no case found
-                updateBOPanel(null);
-            }
-
-        } catch (error) {
-            console.error('Error:', error);
-            addMessage(`Error: ${error.message || 'Something went wrong. Please try again.'}`, 'bot');
-            
-            // Reset state panel on error
-            updateStatePanel({
-                intent: 'Error',
-                transactionId: '-',
-                disputeType: '-'
-            });
-        } finally {
-            // Reset loading state
-            sendButton.disabled = false;
-            userInput.disabled = false;
-        }
-    }
-
-    function updateStatePanel(state) {
-        // Update state panel with new values, keeping existing ones if not provided
-        currentIntent.textContent = state.intent || '-';
-        currentTransactionId.textContent = state.transactionId || '-';
-        currentDisputeType.textContent = state.disputeType || '-';
-    }
-
-    function updateBOPanel(data) {
-        // Reset BO panel if no case data
-        if (!data || !data.case) {
-            fraudBuyer.textContent = '-';
-            fraudBuyer.className = 'bo-value';
-            fraudSeller.textContent = '-';
-            fraudSeller.className = 'bo-value';
-            bpEligibility.textContent = '-';
-            fraudCollusion.textContent = '-';
-            adjudicationOutcome.textContent = '-';
-            payoutAmount.textContent = '-';
-            return;
-        }
-
-        // Update BP Eligibility first as it determines other fields
-        const eligibilityStatus = data.case.bp_eligibility_model.charAt(0).toUpperCase() + data.case.bp_eligibility_model.slice(1);
-        bpEligibility.textContent = eligibilityStatus;
-        bpEligibility.className = 'bo-value ' + (data.case.bp_eligibility_model === 'eligible' ? 'fraud-false' : 'fraud-true');
-
-        if (data.case.bp_eligibility_model === 'ineligible') {
-            // Set all other fields to N/A for ineligible cases
-            fraudBuyer.textContent = 'N/A';
-            fraudBuyer.className = 'bo-value';
-            fraudSeller.textContent = 'N/A';
-            fraudSeller.className = 'bo-value';
-            fraudCollusion.textContent = 'N/A';
-            fraudCollusion.className = 'bo-value';
-            adjudicationOutcome.textContent = 'N/A';
-            adjudicationOutcome.className = 'bo-value';
-        } else {
-            // Function to format risk value
-            const formatRisk = (value) => {
-                if (value === null || value === undefined) return '-';
-                return (value * 100).toFixed(1) + '%';
-            };
-
-            // Function to get risk class
-            const getRiskClass = (value, threshold) => {
-                if (value === null || value === undefined) return '';
-                return value * 100 > threshold ? 'fraud-true' : 'fraud-false';
-            };
-
-            // Update fraud buyer risk
-            fraudBuyer.textContent = formatRisk(data.case.fraud_buyer);
-            fraudBuyer.className = 'bo-value ' + getRiskClass(data.case.fraud_buyer, 70);
-            
-            // Update fraud seller risk
-            fraudSeller.textContent = formatRisk(data.case.fraud_seller);
-            fraudSeller.className = 'bo-value ' + getRiskClass(data.case.fraud_seller, 70);
-
-            // Update fraud collusion risk
-            fraudCollusion.textContent = formatRisk(data.case.fraud_dispute_collusion);
-            fraudCollusion.className = 'bo-value ' + getRiskClass(data.case.fraud_dispute_collusion, 80);
-
-            // Update adjudication outcome
-            adjudicationOutcome.textContent = formatRisk(data.case.adjudication_case_outcome_model);
-            adjudicationOutcome.className = 'bo-value ' + getRiskClass(data.case.adjudication_case_outcome_model, 50);
-
-            // Update payout amount
-            const amount = data.case.payout_sensitivity_model;
-            payoutAmount.textContent = amount ? `$${parseFloat(amount).toFixed(2)}` : '-';
-        }
+document.getElementById('sendButton').addEventListener('click', function() {
+    const message = document.getElementById('userInput').value.trim();
+    if (message) {
+        processUserMessage(message);
     }
 });
+
+function showOptions(options) {
+    const container = document.getElementById('optionsContainer');
+    container.innerHTML = '';
+    
+    if (!options || options.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    options.forEach(option => {
+        const button = document.createElement('button');
+        button.className = 'option-button';
+        button.textContent = option;
+        button.onclick = () => {
+            processUserMessage(option);
+            container.style.display = 'none';
+        };
+        container.appendChild(button);
+    });
+    
+    container.style.display = 'flex';
+}
+
+function hideOptions() {
+    const container = document.getElementById('optionsContainer');
+    container.style.display = 'none';
+    container.innerHTML = '';
+}
+
+async function processUserMessage(message) {
+    try {
+        // Disable input while processing
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+        userInput.disabled = true;
+        sendButton.disabled = true;
+
+        // Show user message
+        addMessage(message, 'user');
+        
+        // Clear input
+        userInput.value = '';
+
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Response data:', data); // Add logging to help debug
+        
+        // Show bot's first response
+        if (data.response) {
+            addMessage(data.response, 'bot');
+        }
+        
+        // If there's a second message, show it after a delay
+        if (data.second_message) {
+            setTimeout(() => {
+                addMessage(data.second_message, 'bot');
+            }, 3000);
+        }
+        
+        // If there's a BO status message, show it as a follow-up message in the chat
+        if (data.bo_status && data.bo_status.message) {
+            // Add a small delay to make it feel more natural
+            setTimeout(() => {
+                addMessage(data.bo_status.message, 'bot');
+            }, 1500);
+        }
+        
+        // Show options if available
+        if (data.options && data.options.length > 0) {
+            showOptions(data.options);
+        } else {
+            hideOptions();
+        }
+        
+        // If there's a BO status, update the panel
+        if (data.bo_status) {
+            console.log('BO Status:', data.bo_status); // Add logging for BO status
+            updateBOPanel(data.bo_status);
+        }
+
+        // Update state panel
+        if (data.context_updates) {
+            updateStatePanel(data.context_updates);
+        }
+        
+        // Show transaction table if needed
+        if (data.show_transactions) {
+            showTransactionTable();
+        }
+        
+    } catch (error) {
+        console.error('Error in processUserMessage:', error);
+        addMessage('Sorry, there was an error processing your request.', 'bot');
+    } finally {
+        // Re-enable input
+        userInput.disabled = false;
+        sendButton.disabled = false;
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    // Reset conversation on page load
+    fetch('/api/reset', { method: 'POST' })
+        .catch(error => console.error('Error resetting conversation:', error));
+});
+
+// Function to show transaction table
+async function showTransactionTable() {
+    try {
+        // Create or get transaction container
+        let transactionContainer = document.getElementById('transactionContainer');
+        if (!transactionContainer) {
+            transactionContainer = document.createElement('div');
+            transactionContainer.id = 'transactionContainer';
+            transactionContainer.className = 'transaction-container';
+            document.getElementById('chatMessages').appendChild(transactionContainer);
+        }
+        
+        // Clear existing content
+        transactionContainer.innerHTML = '<h3>Recent Transactions</h3>';
+        
+        // Fetch transactions from server
+        const response = await fetch('/api/transactions');
+        const transactions = await response.json();
+        
+        if (!transactions || transactions.length === 0) {
+            transactionContainer.innerHTML += '<p>No transactions found.</p>';
+            return;
+        }
+        
+        // Create table
+        const table = document.createElement('table');
+        table.className = 'transaction-table';
+        
+        // Create header
+        const header = document.createElement('tr');
+        ['Transaction ID', 'Merchant', 'Amount', 'Date', 'Action'].forEach(text => {
+            const th = document.createElement('th');
+            th.textContent = text;
+            header.appendChild(th);
+        });
+        table.appendChild(header);
+        
+        // Add transaction rows
+        transactions.forEach(tx => {
+            const row = document.createElement('tr');
+            
+            // Transaction ID
+            const idCell = document.createElement('td');
+            idCell.textContent = tx.transaction_id;
+            row.appendChild(idCell);
+            
+            // Merchant
+            const merchantCell = document.createElement('td');
+            merchantCell.textContent = tx.merchant_seller;
+            row.appendChild(merchantCell);
+            
+            // Amount
+            const amountCell = document.createElement('td');
+            amountCell.textContent = `$${parseFloat(tx.amount).toFixed(2)}`;
+            amountCell.className = 'transaction-amount';
+            row.appendChild(amountCell);
+            
+            // Date
+            const dateCell = document.createElement('td');
+            dateCell.textContent = tx.date;
+            row.appendChild(dateCell);
+            
+            // Select button
+            const actionCell = document.createElement('td');
+            const selectBtn = document.createElement('button');
+            selectBtn.textContent = 'Select';
+            selectBtn.className = 'select-transaction-btn';
+            selectBtn.onclick = () => {
+                processUserMessage(tx.transaction_id);
+                transactionContainer.style.display = 'none';
+            };
+            actionCell.appendChild(selectBtn);
+            row.appendChild(actionCell);
+            
+            table.appendChild(row);
+        });
+        
+        transactionContainer.appendChild(table);
+        transactionContainer.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error showing transactions:', error);
+        addMessage('Sorry, there was an error loading transactions.', 'bot');
+    }
+}
+
+// Function to update state panel with current context
+function updateStatePanel(contextUpdates) {
+    if (!contextUpdates) return;
+    
+    // Update intent
+    if (contextUpdates.intent) {
+        document.getElementById('currentIntent').textContent = contextUpdates.intent;
+    }
+    
+    // Update transaction ID
+    if (contextUpdates.transaction_id) {
+        document.getElementById('currentTransactionId').textContent = contextUpdates.transaction_id;
+    }
+    
+    // Update dispute type
+    if (contextUpdates.dispute_type) {
+        document.getElementById('currentDisputeType').textContent = contextUpdates.dispute_type;
+    }
+}
+
+// Function to update BO panel with case details
+function updateBOPanel(boStatus) {
+    try {
+        if (!boStatus || boStatus.status !== 'success' || !boStatus.case) {
+            console.log('Invalid BO status data:', boStatus);
+            return;
+        }
+        
+        const case_data = boStatus.case;
+        
+        // Helper function to safely update element text content
+        function safelyUpdateElement(id, value, formatter = (v) => v) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value != null ? formatter(value) : 'N/A';
+            } else {
+                console.warn(`Element with id "${id}" not found`);
+            }
+        }
+        
+        // Update fraud metrics
+        safelyUpdateElement('fraudBuyer', case_data.buyer_fraud_score, v => v.toFixed(2));
+        safelyUpdateElement('fraudSeller', case_data.seller_fraud_score, v => v.toFixed(2));
+        safelyUpdateElement('bpEligibility', case_data.bp_eligibility);
+        safelyUpdateElement('payoutAmount', case_data.payout_amount, v => `$${v.toFixed(2)}`);
+        safelyUpdateElement('fraudCollusion', case_data.dispute_collusion_score, v => v.toFixed(2));
+        safelyUpdateElement('adjudicationOutcome', case_data.adjudication_outcome_score, v => v.toFixed(2));
+        
+        // Make the BO insights panel visible if it exists
+        const insightsPanel = document.getElementById('boInsightsPanel');
+        if (insightsPanel) {
+            insightsPanel.style.display = 'block';
+        } else {
+            console.warn('BO Insights Panel element not found');
+            return; // Exit if no panel exists
+        }
+        
+        // Update progress if progress elements exist
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        
+        if (!progressBar || !progressText) {
+            console.warn('Progress bar or text elements not found');
+            return;
+        }
+        
+        // Function to safely add class to element
+        function safelyAddClass(id, className) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.classList.add(className);
+            }
+        }
+        
+        // Function to safely remove all classes and add new ones
+        function safelyResetAndAddClasses(element, ...classNames) {
+            if (element) {
+                element.className = ''; // Clear existing classes
+                element.classList.add(...classNames);
+            }
+        }
+        
+        // Apply appropriate styling based on status type
+        if (case_data.status_type === 'instant_payout') {
+            // Instant Approval
+            progressBar.style.width = '100%';
+            safelyResetAndAddClasses(progressBar, 'progress-bar', 'bg-success');
+            progressText.textContent = 'Instant Approval - 100%';
+            
+            // Highlight the key metrics that led to instant approval
+            safelyAddClass('fraudBuyerLabel', 'text-success');
+            safelyAddClass('fraudSellerLabel', 'text-success');
+            safelyAddClass('bpEligibilityLabel', 'text-success');
+            safelyAddClass('adjudicationOutcomeLabel', 'text-success');
+            
+        } else if (case_data.status_type === 'decline') {
+            // Declined
+            progressBar.style.width = '100%';
+            safelyResetAndAddClasses(progressBar, 'progress-bar', 'bg-danger');
+            progressText.textContent = 'Declined - 100%';
+            
+            // Highlight the metrics that led to decline
+            if (case_data.bp_eligibility !== 'eligible') {
+                safelyAddClass('bpEligibilityLabel', 'text-danger');
+            }
+            if (case_data.buyer_fraud_score > 0.7) {
+                safelyAddClass('fraudBuyerLabel', 'text-danger');
+            }
+            
+        } else {
+            // Wait for Seller Response (default)
+            progressBar.style.width = '50%';
+            safelyResetAndAddClasses(progressBar, 'progress-bar', 'bg-info');
+            progressText.textContent = 'Waiting for Seller Response - 50%';
+        }
+    } catch (error) {
+        console.error('Error in updateBOPanel:', error);
+        // Don't throw the error further to prevent it from affecting the chat flow
+    }
+}

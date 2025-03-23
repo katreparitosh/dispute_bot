@@ -231,34 +231,26 @@ body {
 }
 
 .options-container {
-    padding: 10px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-width: 50%;
-    margin: 0 auto;
-    flex-shrink: 0;
+    display: none;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 15px;
+    border-top: 1px solid #eee;
 }
 
 .option-button {
-    width: 100%;
-    padding: 16px;
-    background-color: #ebefef;
-    border: 1px solid #eee;
-    color: #000;
-    border-radius: 8px;
+    background: #0070ba;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 16px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    text-align: left;
-    font-size: 1.1em;
+    font-size: 14px;
+    transition: background-color 0.2s;
 }
 
 .option-button:hover {
-    background-color: #f8f9fa;
-    border-color: #0070ba;
+    background: #003087;
 }
 
 .transaction-row {
@@ -334,6 +326,50 @@ body {
 
 #sendButton:hover {
     background-color: #003087;
+}
+
+/* Progress section */
+.bo-progress {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.progress-text {
+    margin-bottom: 10px;
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+}
+
+.progress {
+    height: 20px !important;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    transition: width 0.5s ease-in-out;
+}
+
+.progress-bar.bg-info {
+    background-color: #0070ba !important;
+}
+
+.progress-bar.bg-success {
+    background-color: #28a745 !important;
+}
+
+.progress-bar.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+/* Hide progress initially */
+#boProgress {
+    display: none;
 }
 
 /* Scrollbar styling */

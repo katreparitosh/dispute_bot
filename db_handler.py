@@ -50,30 +50,25 @@ class DatabaseHandler:
             
         return True, "Valid dispute details"
 
-    def create_dispute(self, transaction_id, dispute_type, details):
-        """Create a new dispute record with specific reason requirements"""
+    def create_dispute(self, transaction_id, merchant, amount, issue_type, dispute_reason):
+        """Create a new dispute record with the given details"""
         try:
-            # First verify the transaction
-            transaction = self.get_transaction(transaction_id)
-            if not transaction:
-                return None, "Transaction not found"
-                
-            # Validate dispute type and details
-            is_valid, message = self.validate_dispute_reason(dispute_type, details)
-            if not is_valid:
-                return None, message
-
+            print(f"Creating dispute with: transaction_id={transaction_id}, merchant={merchant}, amount={amount}, type={issue_type}, reason={dispute_reason}")
+            
             # Generate dispute ID
             dispute_id = f"DSP{str(uuid.uuid4())[:8]}"
+            print(f"Generated dispute_id: {dispute_id}")
             
             # Read existing disputes
             try:
                 disputes_df = pd.read_csv(self.disputes_file)
-            except:
+                print(f"Read existing disputes file with {len(disputes_df)} rows")
+            except Exception as e:
+                print(f"Creating new disputes DataFrame due to: {str(e)}")
                 disputes_df = pd.DataFrame(columns=[
                     'dispute_id', 'transaction_id', 
-                    'type', 'status', 'creation_date', 'description',
-                    'details', 'merchant', 'amount'
+                    'type', 'status', 'creation_date',
+                    'dispute_reason', 'merchant', 'amount'
                 ])
 
             # Check if dispute already exists
@@ -81,29 +76,36 @@ class DatabaseHandler:
                 (disputes_df['transaction_id'] == transaction_id) & 
                 (disputes_df['status'] != 'closed')
             ]) > 0:
-                return None, "Active dispute already exists for this transaction"
+                print(f"Found existing active dispute for transaction {transaction_id}")
+                return None
 
             # Create new dispute record
             new_dispute = {
                 'dispute_id': dispute_id,
                 'transaction_id': transaction_id,
-                'type': dispute_type,
+                'type': issue_type,
                 'status': 'open',
                 'creation_date': datetime.now().strftime('%Y-%m-%d'),
-                'details': details,  # Store all the reason-specific details
-                'description': details.get('description', ''),
-                'merchant': transaction['merchant_seller'],  # Add merchant from transaction
-                'amount': transaction['amount']  # Add amount from transaction
+                'dispute_reason': dispute_reason,
+                'merchant': merchant,
+                'amount': amount
             }
+            print(f"Created new dispute record: {new_dispute}")
             
             # Append new dispute
             disputes_df = pd.concat([disputes_df, pd.DataFrame([new_dispute])], ignore_index=True)
-            disputes_df.to_csv(self.disputes_file, index=False)
+            print(f"Appended new dispute to DataFrame, now has {len(disputes_df)} rows")
             
-            return new_dispute, "Dispute created successfully"
+            # Save to file
+            disputes_df.to_csv(self.disputes_file, index=False)
+            print(f"Saved disputes to file {self.disputes_file}")
+            
+            return dispute_id
         except Exception as e:
             print(f"Error creating dispute: {str(e)}")
-            return None, f"Error creating dispute: {str(e)}"
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+            return None
 
 
 
@@ -165,3 +167,56 @@ class DatabaseHandler:
         except Exception as e:
             print(f"Error reading disputes: {str(e)}")
             return []
+
+    def add_dispute(self, dispute_data):
+        """Add a new dispute with the provided data
+        
+        Args:
+            dispute_data (dict): Dictionary containing dispute information:
+                - dispute_id
+                - transaction_id
+                - merchant
+                - amount
+                - dispute_type
+                - dispute_reason
+                - status
+                - date_created
+        
+        Returns:
+            bool: True if added successfully, False otherwise
+        """
+        try:
+            # Read existing disputes
+            try:
+                disputes_df = pd.read_csv(self.disputes_file)
+            except Exception as e:
+                print(f"Creating new disputes DataFrame: {str(e)}")
+                disputes_df = pd.DataFrame(columns=[
+                    'dispute_id', 'transaction_id', 
+                    'type', 'status', 'creation_date',
+                    'dispute_reason', 'merchant', 'amount'
+                ])
+
+            # Map the incoming data to match our columns
+            new_dispute = {
+                'dispute_id': dispute_data['dispute_id'],
+                'transaction_id': dispute_data['transaction_id'],
+                'type': dispute_data['dispute_type'],
+                'status': dispute_data['status'],
+                'creation_date': dispute_data['date_created'],
+                'dispute_reason': dispute_data['dispute_reason'],
+                'merchant': dispute_data['merchant'],
+                'amount': dispute_data['amount']
+            }
+            
+            # Append new dispute
+            disputes_df = pd.concat([disputes_df, pd.DataFrame([new_dispute])], ignore_index=True)
+            
+            # Save to file
+            disputes_df.to_csv(self.disputes_file, index=False)
+            print(f"Added dispute {dispute_data['dispute_id']} to database")
+            return True
+            
+        except Exception as e:
+            print(f"Error adding dispute: {str(e)}")
+            return False

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PayPal Dispute AI Agent</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <script src="script.js" defer></script>
 </head>
@@ -33,9 +34,20 @@
             </div>
             <div class="side-panels">
                 <div class="bo-panel">
-                    <h2>BO Agent Insights </h2>
-                <p class="subtitle">Printed only for Demo Purposes</p>
-                <br>
+                    <h2>BO Agent Insights</h2>
+                    <p class="subtitle">Printed only for Demo Purposes</p>
+                    
+                    <!-- Progress section -->
+                    <div id="boProgress" class="bo-progress">
+                        <div id="progressText" class="progress-text"></div>
+                        <div class="progress" style="height: 20px;">
+                            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 0%" 
+                                 aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+
+                    <!-- BO metrics -->
                     <div class="bo-content" id="boContent">
                         <div class="bo-item">
                             <span class="bo-label">Buyer Fraud Risk:</span>
@@ -70,7 +82,6 @@
                             <span class="state-label">Customer Intent</span>
                             <span class="state-value" id="currentIntent">-</span>
                         </div>
-
                         <div class="state-item">
                             <span class="state-label">Transaction ID:</span>
                             <span class="state-value" id="currentTransactionId">-</span>

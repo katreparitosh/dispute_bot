@@ -1,4 +1,4 @@
-dispute_id,transaction_id,type,status,creation_date,description,details,merchant,amount
-# This file will store dispute records,,,,,,,,
-DSP55ca96bd,TX789013,INR,open,2025-03-12,,"{'expected_delivery_date': '2025-03-10', 'contacted_seller': 'No'}",eBay Motors,17.67
-DSP9659998e,TX789012,INR,open,2025-03-13,,"{'expected_delivery_date': '15th March 2025', 'contacted_seller': 'Yes'}",Amazon Seller LLC,149.99
+dispute_id,transaction_id,type,status,creation_date,description,details,merchant,amount,dispute_reason
+# This file will store dispute records,,,,,,,,,
+DSP40a07516,TX123456,INR,open,2025-03-23,,,Best Buy,79.99,Item not delivered
+DSP542b51b3,TX789012,INR,New,2025-03-23,,,,149.99,Item not delivered
